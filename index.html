@@ -1,0 +1,271 @@
+
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>Analog Digital Clock</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #111;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
+
+</head>
+<body>
+<canvas id="clockCanvas"></canvas>
+<script>
+const canvas = document.getElementById('clockCanvas');
+const ctx = canvas.getContext('2d');
+
+const scale = window.devicePixelRatio;
+canvas.width = window.innerWidth * scale;
+canvas.height = window.innerHeight * scale;
+canvas.style.width = '100vw';
+canvas.style.height = '100vh';
+ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+// Get canvas display size
+const displayWidth = window.innerWidth;
+const displayHeight = window.innerHeight;
+
+// Constants
+const CLOCK_SIZE = 50;
+const DIGIT_WIDTH = 3;
+const DIGIT_HEIGHT = 6;
+const CLOCK_SPACING = -3;
+const DIGIT_SPACING = 20;
+const GROUP_SPACING = 40;
+const digitBlockWidth = (CLOCK_SIZE + CLOCK_SPACING) * DIGIT_WIDTH;
+const totalTimeWidth = digitBlockWidth * 6 + GROUP_SPACING * 2;
+const centerX = (displayWidth - totalTimeWidth) / 2;
+const digitBlockHeight = (CLOCK_SIZE + CLOCK_SPACING) * DIGIT_HEIGHT - CLOCK_SPACING;
+const centerY = (displayHeight - digitBlockHeight) / 2;
+
+// Initialize clock state
+const clockStates = [];
+for (let i = 0; i < 6 * DIGIT_HEIGHT * DIGIT_WIDTH; i++) {
+  clockStates.push({ h: 0, m: 0, targetH: 0, targetM: 0 });
+}
+
+// Helper
+function handPos(center, length, angleDeg) {
+  const angleRad = (angleDeg - 90) * Math.PI / 180;
+  return {
+    x: center.x + length * Math.cos(angleRad),
+    y: center.y + length * Math.sin(angleRad)
+  };
+}
+
+function lerpAngle(a, b, t) {
+  let diff = ((b - a + 540) % 360) - 180;
+  return a + diff * t;
+}
+
+// Draw single clock
+function drawClock(x, y, hourAngle, minuteAngle) {
+  const center = { x: x + CLOCK_SIZE / 2, y: y + CLOCK_SIZE / 2 };
+
+  // Circle
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, CLOCK_SIZE / 2 - 3, 0, 2 * Math.PI);
+  ctx.strokeStyle = '#3d3d3d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Minute hand
+  let end = handPos(center, CLOCK_SIZE / 2 - 6, minuteAngle);
+  ctx.beginPath();
+  ctx.moveTo(center.x, center.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.strokeStyle = '#e38e05';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Hour hand
+  end = handPos(center, CLOCK_SIZE / 2 - 12, hourAngle);
+  ctx.beginPath();
+  ctx.moveTo(center.x, center.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.strokeStyle = '#e38e05';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+}
+
+// Digits map (unchanged)
+const digits = {
+  '0': [[[90,180],[90,270],[-90,180]],[[0,180],[180,180],[0,180]],[[0,180],[0,180],[0,180]],[[0,180],[0,180],[0,180]],[[0,180],[0,0],[0,180]],[[90,0],[90,270],[-90,0]]],
+  '1': [[[90,180],[90,270],[-90,180]],[[90,0],[-90,180],[0,180]],[[-180,-180],[0,180],[0,180]],[[-180,-180],[0,180],[0,180]],[[-180,-180],[0,180],[0,180]],[[0,0],[90,0],[-90,0]]],
+  '2': [[[90,180],[90,270],[-90,180]],[[90,0],[-90,180],[0,180]],[[90,180],[-90,0],[0,180]],[[0,180],[90,180],[-90,0]],[[0,180],[90,0],[-90,180]],[[90,0],[90,270],[-90,0]]],
+  '3': [[[90,180],[90,270],[-90,180]],[[90,0],[-90,180],[0,180]],[[90,180],[-90,0],[0,180]],[[90,0],[-90,180],[0,180]],[[90,180],[-90,0],[0,180]],[[90,0],[90,270],[-90,0]]],
+  '4': [[[90,180],[-90,180],[-90,180]],[[0,180],[0,180],[0,180]],[[0,180],[90,0],[0,180]],[[90,0],[-90,180],[0,180]],[[-180,-180],[0,180],[0,180]],[[0,0],[90,0],[-90,0]]],
+  '5': [[[90,180],[90,270],[-90,180]],[[0,180],[90,180],[-90,0]],[[0,180],[90,0],[-90,180]],[[90,0],[-90,180],[0,180]],[[90,180],[-90,0],[0,180]],[[90,0],[90,270],[-90,0]]],
+  '6': [[[90,180],[90,270],[-90,180]],[[0,180],[90,180],[-90,0]],[[0,180],[90,0],[-90,180]],[[0,180],[180,180],[0,180]],[[0,180],[0,0],[0,180]],[[90,0],[90,270],[-90,0]]],
+  '7': [[[90,180],[90,270],[-90,90]],[[90,0],[-90,90],[-135,45]],[[-180,-180],[180,45],[180,45]],[[-180,-180],[0,180],[0,180]],[[-180,-180],[0,180],[0,180]],[[0,0],[90,0],[-90,0]]],
+  '8': [[[90,180],[90,270],[-90,180]],[[0,180],[180,180],[0,180]],[[0,135],[0,0],[0,-135]],[[180,45],[180,180],[180,-45]],[[0,180],[0,0],[0,180]],[[90,0],[90,270],[-90,0]]],
+  '9': [[[90,180],[270,90],[270,180]],[[180,0],[180,180],[180,0]],[[180,0],[0,0],[180,0]],[[90,0],[270,180],[180,0]],[[90,180],[270,0],[180,0]],[[90,0],[270,90],[270,0]]]
+};
+
+
+function interpolateDigit(curr, next, t) {
+  const result = [];
+  for (let row = 0; row < DIGIT_HEIGHT; row++) {
+    result[row] = [];
+    for (let col = 0; col < DIGIT_WIDTH; col++) {
+      const [h1, m1] = curr[row][col];
+      const [h2, m2] = next[row][col];
+      const h = lerpAngle(h1, h2, t);
+      const m = lerpAngle(m1, m2, t);
+      result[row][col] = [h, m];
+    }
+  }
+  return result;
+}
+
+// Update clock targets every second
+function updateTargets() {
+  const now = new Date();
+  const local = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+  const h = local.getHours().toString().padStart(2, '0');
+  const m = local.getMinutes().toString().padStart(2, '0');
+  const s = local.getSeconds().toString().padStart(2, '0');
+
+  const timeStr = h + m + s;
+  const seconds = local.getSeconds();
+  const secondFraction = local.getMilliseconds() / 1000;
+  const minuteFraction = (seconds + secondFraction) / 60;
+
+
+  for (let i = 0; i < 6; i++) {
+    let digitGrid;
+
+    // SS[1] (index 5) → Always interpolating toward next digit smoothly
+    // SS[1] (index 5) → Always interpolate toward next digit smoothly
+if (i === 5) {
+  const currDigit = parseInt(timeStr[i]);
+  const nextDigit = (currDigit + 1) % 10;
+
+  const curr = digits[currDigit.toString()] || digits['0'];
+  const next = digits[nextDigit.toString()] || digits['0'];
+  digitGrid = interpolateDigit(curr, next, secondFraction);
+}
+
+// SS[0] (index 4) → Interpolate if SS[1] is 9
+else if (i === 4) {
+  const ones = parseInt(timeStr[5]);
+  const currDigit = parseInt(timeStr[i]);
+  const nextDigit = (currDigit + 1) % 6;
+
+  const curr = digits[currDigit.toString()] || digits['0'];
+  const next = digits[nextDigit.toString()] || digits['0'];
+  const t = (ones === 9) ? secondFraction : 0;
+  digitGrid = interpolateDigit(curr, next, t);
+}
+
+
+    // MM[1] (index 3) → Always interpolating toward next digit
+    else if (i === 3) {
+      const currDigit = parseInt(timeStr[i]);
+      const nextDigit = (currDigit + 1) % 10;
+
+      const curr = digits[currDigit.toString()];
+      const next = digits[nextDigit.toString()];
+      digitGrid = interpolateDigit(curr, next, minuteFraction);
+    }
+
+    // MM[0] (index 2) → Interpolate if MM[1] is 9
+    else if (i === 2) {
+      const ones = parseInt(timeStr[3]);
+      const currDigit = parseInt(timeStr[i]);
+      const nextDigit = (currDigit + 1) % 6;
+
+      const curr = digits[currDigit.toString()];
+      const next = digits[nextDigit.toString()];
+      const t = (ones === 9) ? minuteFraction : 0;
+      digitGrid = interpolateDigit(curr, next, t);
+    }
+
+    // HH[1] (index 1) → Interpolate if MM == 59
+    else if (i === 1) {
+      const minutes = parseInt(m);
+      const hour = parseInt(h);
+      const nextHour = (hour + 1) % 24;
+      const currDigit = hour % 10;
+      const nextDigit = nextHour % 10;
+      const t = (minutes === 59) ? secondT : 0;
+      digitGrid = interpolateDigit(digits[currDigit], digits[nextDigit], t);
+    }
+   // HH[0] – interpolate if MM == 59 and tens digit changes
+    else if (i === 0) {
+      const minutes = parseInt(m);
+      const hour = parseInt(h);
+      const nextHour = (hour + 1) % 24;
+      const currTens = Math.floor(hour / 10);
+      const nextTens = Math.floor(nextHour / 10);
+      const t = (minutes === 59 && currTens !== nextTens) ? secondT : 0;
+      digitGrid = interpolateDigit(digits[currTens], digits[nextTens], t);
+    }
+
+    // Assign interpolated or static grid to targets
+    for (let row = 0; row < DIGIT_HEIGHT; row++) {
+      for (let col = 0; col < DIGIT_WIDTH; col++) {
+        const [h, m] = digitGrid[row][col];
+        const index = i * DIGIT_WIDTH * DIGIT_HEIGHT + row * DIGIT_WIDTH + col;
+        clockStates[index].targetH = h;
+        clockStates[index].targetM = m;
+      }
+    }
+  }
+}
+
+
+// Draw loop with animation
+function draw() {
+  ctx.clearRect(0, 0, canvas.width / scale, canvas.height / scale);
+
+  let i = 0;
+  for (let digit = 0; digit < 6; digit++) {
+    let groupOffset = 0;
+    if (digit >= 2) groupOffset += GROUP_SPACING;
+    if (digit >= 4) groupOffset += GROUP_SPACING;
+    const offsetX = centerX + digit * digitBlockWidth + groupOffset;
+
+    for (let row = 0; row < DIGIT_HEIGHT; row++) {
+      for (let col = 0; col < DIGIT_WIDTH; col++) {
+        const clock = clockStates[i++];
+        clock.h = lerpAngle(clock.h, clock.targetH, 0.2);
+        clock.m = lerpAngle(clock.m, clock.targetM, 0.2);
+        const x = offsetX + col * (CLOCK_SIZE + CLOCK_SPACING);
+        const y = centerY + row * (CLOCK_SIZE + CLOCK_SPACING);
+        drawClock(x, y, clock.h, clock.m);
+      }
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// Start
+updateTargets();
+setInterval(updateTargets, 1000);
+requestAnimationFrame(draw);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+
+</script>
+</body>
+</html>
