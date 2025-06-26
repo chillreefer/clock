@@ -30,29 +30,52 @@
 const canvas = document.getElementById('clockCanvas');
 const ctx = canvas.getContext('2d');
 
-const scale = window.devicePixelRatio;
+window.addEventListener('resize', () => {
+  location.reload(); // Reload to recalculate sizes
+});
+
+const scale = window.devicePixelRatio || 1;
 canvas.width = window.innerWidth * scale;
 canvas.height = window.innerHeight * scale;
 canvas.style.width = '100vw';
 canvas.style.height = '100vh';
 ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-// Get canvas display size
+// Detect display size and orientation
 const displayWidth = window.innerWidth;
 const displayHeight = window.innerHeight;
 
-// Constants
-const CLOCK_SIZE = 50;
+// Dynamically scale the clock size to fit screen
+const minDimension = Math.min(window.innerWidth, window.innerHeight);
+
+// Rest of your layout math (spacing, center, etc.)
 const DIGIT_WIDTH = 3;
 const DIGIT_HEIGHT = 6;
 const CLOCK_SPACING = -3;
 const DIGIT_SPACING = 20;
 const GROUP_SPACING = 40;
+
+// Base clock layout dimensions
+const baseClockSize = 90;
+const clocksPerRow = 3 * 6 + 2; // 6 digits with 3 clocks each + 2 spacers
+const clocksPerCol = 6;         // 6 rows
+
+// Calculate max clock size that fits on screen
+const maxClockWidth = displayWidth / clocksPerRow;
+const maxClockHeight = displayHeight / clocksPerCol;
+
+// Choose smaller one to ensure it fits both horizontally and vertically
+const CLOCK_SIZE = Math.floor(Math.min(maxClockWidth, maxClockHeight));
+
+
 const digitBlockWidth = (CLOCK_SIZE + CLOCK_SPACING) * DIGIT_WIDTH;
-const totalTimeWidth = digitBlockWidth * 6 + GROUP_SPACING * 2;
-const centerX = (displayWidth - totalTimeWidth) / 2;
 const digitBlockHeight = (CLOCK_SIZE + CLOCK_SPACING) * DIGIT_HEIGHT - CLOCK_SPACING;
+const totalTimeWidth = digitBlockWidth * 6 + GROUP_SPACING * 2;
+
+const centerX = (displayWidth - totalTimeWidth) / 2;
 const centerY = (displayHeight - digitBlockHeight) / 2;
+
+
 
 // Initialize clock state
 const clockStates = [];
